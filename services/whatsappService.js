@@ -1,31 +1,44 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcodeImage = require('qrcode'); // Browser QR rendering ke liye
+const fs = require('fs');
 require('dotenv').config();
 
 let latestQrBase64 = ''; // Base64 image store karne ke liye variable
 let isClientReady = false; // State tracking for readiness
 
-const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
+console.log('🚀 Initializing WhatsApp Web Service...');
 
-console.log('🚀 Initializing WhatsApp Web Client...');
+// Executable Path Handler
+const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
+const defaultPath = '/usr/bin/google-chrome-stable';
+const systemChromePath = envPath || defaultPath;
+
+const puppeteerConfig = {
+  headless: true,
+  args: [
+    '--no-sandbox',
+    '--disable-setuid-sandbox',
+    '--disable-dev-shm-usage',
+    '--disable-accelerated-2d-canvas',
+    '--no-first-run',
+    '--no-zygote',
+    '--single-process', // Crucial for Render Free Tier RAM limits
+    '--disable-gpu'
+  ]
+};
+
+if (fs.existsSync(systemChromePath)) {
+  console.log(`✅ Using Chrome binary at: ${systemChromePath}`);
+  puppeteerConfig.executablePath = systemChromePath;
+} else {
+  console.log(`⚠️ Chrome executable not found at "${systemChromePath}". Falling back to Puppeteer default Chromium.`);
+}
 
 const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: './whatsapp-auth'
   }),
-  puppeteer: {
-    headless: true,
-    executablePath: require('fs').existsSync(executablePath) ? executablePath : undefined,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-accelerated-2d-canvas',
-      '--no-first-run',
-      '--no-zygote',
-      '--disable-gpu'
-    ]
-  }
+  puppeteer: puppeteerConfig
 });
 
 // QR Code Event
@@ -68,9 +81,12 @@ client.on('disconnected', (reason) => {
   console.log('⚠️ WhatsApp Client Disconnected:', reason);
 });
 
-// Client Initialize Call
-client.initialize().catch((err) => {
-  console.error('❌ Failed to initialize WhatsApp Client:', err);
+// Client Initialize Call with Catch Block
+console.log('🔄 Launching client.initialize()...');
+client.initialize().then(() => {
+  console.log('👍 client.initialize() triggered successfully.');
+}).catch((err) => {
+  console.error('❌ FATAL: client.initialize() crashed:', err);
 });
 
 // WhatsApp Message Sender Function
