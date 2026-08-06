@@ -1,19 +1,23 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcodeImage = require('qrcode'); // Browser QR rendering ke liye
+const qrcodeImage = require('qrcode');
 const fs = require('fs');
+const path = require('path');
 require('dotenv').config();
 
-let latestQrBase64 = ''; // Base64 image store karne ke liye variable
-let isClientReady = false; // State tracking for readiness
+let latestQrBase64 = ''; 
+let isClientReady = false; 
 
 console.log('🚀 Initializing WhatsApp Web Service...');
 
-// Executable Path Handler with Fallback
+// Session Storage Path
+const sessionDir = path.join(__dirname, '..', 'whatsapp-auth');
+
+// Executable Path Handler
 const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
 const defaultPath = '/usr/bin/google-chrome-stable';
 const systemChromePath = envPath || defaultPath;
 
-// Render Docker Low-Memory Environment Flags
+// Render Optimized Puppeteer Configuration
 const puppeteerConfig = {
   headless: true,
   args: [
@@ -22,12 +26,12 @@ const puppeteerConfig = {
     '--disable-dev-shm-usage',
     '--disable-accelerated-2d-canvas',
     '--no-first-run',
-    '--no-zygote',
-    '--single-process', // Critical for Render Free Tier RAM limits
+    '--no-default-browser-check',
     '--disable-gpu',
     '--disable-software-rasterizer',
     '--disable-extensions',
-    '--no-default-browser-check'
+    '--memory-pressure-off'
+    // NOTE: Removed '--single-process' and '--no-zygote' as they crash newer Chrome builds
   ]
 };
 
@@ -35,24 +39,23 @@ if (fs.existsSync(systemChromePath)) {
   console.log(`✅ Using Chrome binary at: ${systemChromePath}`);
   puppeteerConfig.executablePath = systemChromePath;
 } else {
-  console.log(`⚠️ Chrome executable not found at "${systemChromePath}". Falling back to default Puppeteer Chromium.`);
+  console.log(`⚠️ Chrome binary not found at "${systemChromePath}". Using default Puppeteer Chromium.`);
 }
 
 const client = new Client({
   authStrategy: new LocalAuth({
-    dataPath: './whatsapp-auth'
+    dataPath: sessionDir
   }),
   puppeteer: puppeteerConfig
 });
 
-// QR Code Event
+// Event: QR Code Received
 client.on('qr', async (qr) => {
   isClientReady = false;
   console.log('\n===================================================');
   console.log('⚡ NEW QR CODE GENERATED! Open /qr in browser to scan.');
   console.log('===================================================\n');
 
-  // Browser me dikhane ke liye Base64 Data URL generate kar rahe hain
   try {
     latestQrBase64 = await qrcodeImage.toDataURL(qr);
     console.log('✅ QR Image converted to Base64 successfully!');
@@ -61,31 +64,33 @@ client.on('qr', async (qr) => {
   }
 });
 
-// Client Ready Event
+// Event: Client Ready
 client.on('ready', () => {
   isClientReady = true;
-  latestQrBase64 = ''; // Connect hone par QR clear kar dein
+  latestQrBase64 = ''; 
   console.log('\n===================================================');
   console.log('✅ WHATSAPP WEB CLIENT SAFALTAPOORVAK CONNECT HO GAYA!');
   console.log('===================================================\n');
 });
 
-// Authentication Status Logs
+// Event: Authentication Successful
 client.on('authenticated', () => {
   console.log('🔑 WhatsApp Authentication Successful!');
 });
 
+// Event: Authentication Failure
 client.on('auth_failure', (msg) => {
   isClientReady = false;
   console.error('❌ AUTHENTICATION FAILURE:', msg);
 });
 
-client.on('disconnected', (reason) => {
+// Event: Disconnected
+client.on('disconnected', async (reason) => {
   isClientReady = false;
   console.log('⚠️ WhatsApp Client Disconnected:', reason);
 });
 
-// Initialize with Error Catching
+// Initialize Service
 async function startWhatsAppService() {
   console.log('🔄 Launching client.initialize()...');
   try {
@@ -126,7 +131,7 @@ async function sendWhatsAppMessage(phoneNumber, message) {
   }
 }
 
-// Full Customer Data formatted Notification Function
+// Booking Status Notification Handler
 async function notifyBookingStatus(bookingData) {
   const adminPhone = process.env.ADMIN_PHONE;
 
@@ -142,10 +147,9 @@ async function notifyBookingStatus(bookingData) {
     status
   } = bookingData;
 
-  // Formatting Date
   const formattedDate = bookingDate ? new Date(bookingDate).toLocaleDateString('en-IN') : 'N/A';
 
-  // 1. Admin ke liye Complete Details Message
+  // Admin Notification
   const adminMsg = `*NEW BOOKING RECEIVED* 
 
 🆔 *Booking ID:* #${bookingId}
@@ -159,7 +163,7 @@ async function notifyBookingStatus(bookingData) {
 📅 *Date:* ${formattedDate}
 📌 *Status:* ${status || 'Pending'}`;
 
-  // 2. Customer ke liye Confirmation Message
+  // Customer Notification
   const customerMsg = `🎉 *Booking Received!*
 
 Hello ${customerName || 'Customer'},
@@ -178,20 +182,18 @@ Our team will get in touch with you shortly to confirm your booking details.
 📞 For Any Query Contact: ${adminPhone || 'N/A'}
 
 Warm Regards,
-
 Sahu Transport & Logistics🚛`;
 
-  // Messages send karein
   if (customerPhone) await sendWhatsAppMessage(customerPhone, customerMsg);
   if (adminPhone) await sendWhatsAppMessage(adminPhone, adminMsg);
 }
 
-// Helper function to handle Web Express QR Route
+// Express Endpoint Handler for /qr
 function getQrRoute(req, res) {
   if (isClientReady) {
     return res.send(`
       <div style="text-align:center; font-family:sans-serif; margin-top:50px;">
-        <h2 style="color: green;">✅ WhatsApp Client is already Connected & Active!</h2>
+        <h2 style="color: green;">✅ WhatsApp Client is active and connected!</h2>
       </div>
     `);
   }
@@ -210,7 +212,7 @@ function getQrRoute(req, res) {
     <html>
       <head>
         <title>WhatsApp Web QR Scan</title>
-        <meta http-equiv="refresh" content="15">
+        <meta http-equiv="refresh" content="10">
         <style>
           body { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 80vh; font-family: sans-serif; background-color: #f4f6f8; }
           .card { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); text-align: center; }
@@ -221,7 +223,7 @@ function getQrRoute(req, res) {
         <div class="card">
           <h2>Scan with WhatsApp</h2>
           <img src="${latestQrBase64}" width="280" height="280" alt="WhatsApp QR Code" />
-          <p style="color: #666; font-size: 14px;">This page auto-refreshes every 15 seconds.</p>
+          <p style="color: #666; font-size: 14px;">This page auto-refreshes every 10 seconds.</p>
         </div>
       </body>
     </html>
