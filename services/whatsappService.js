@@ -2,12 +2,17 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 require('dotenv').config();
 
+// Docker / Production environments me system executable path handle karne ke liye
+const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
+
 const client = new Client({
   authStrategy: new LocalAuth({
     dataPath: './whatsapp-auth'
   }),
   puppeteer: {
     headless: true,
+    // Docker container me Google Chrome binary ensure karne ke liye
+    executablePath: require('fs').existsSync(executablePath) ? executablePath : undefined,
     args: [
       '--no-sandbox',
       '--disable-setuid-sandbox',
