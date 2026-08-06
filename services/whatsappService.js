@@ -1,32 +1,8 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 require('dotenv').config();
 
-// Port 465 Direct SSL Setup (Fixes Render Connection Timeout)
-const transporter = nodemailer.createTransport({
-  host: 'smtp.gmail.com',
-  port: 465,
-  secure: true, // SSL ke liye True rakhein
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  },
-  pool: true,
-  maxConnections: 3,
-  connectionTimeout: 10000, // 10 seconds timeout limit
-  greetingTimeout: 5000,
-  socketTimeout: 10000
-});
+const resend = new Resend(process.env.RESEND_API_KEY);
 
-// Transporter Connection Verify Code (Logs me check karne ke liye)
-transporter.verify((error, success) => {
-  if (error) {
-    console.error('❌ Nodemailer Verification Error:', error.message);
-  } else {
-    console.log('✅ Gmail SMTP Server is ready to send emails!');
-  }
-});
-
-// Notification Dispatcher Function
 async function notifyBookingStatus(bookingData) {
   const {
     bookingId,
@@ -40,42 +16,46 @@ async function notifyBookingStatus(bookingData) {
     status
   } = bookingData;
 
-  const mailOptions = {
-    from: `"Sahu Transport" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: `Booking Update #${bookingId} - Sahu Transport`,
-    html: `
-      <h2>Hello ${customerName},</h2>
-      <p>Your booking status is now: <strong>${status}</strong></p>
-      <ul>
-        <li><strong>Booking ID:</strong> #${bookingId}</li>
-        <li><strong>Pickup:</strong> ${pickupLocation}</li>
-        <li><strong>Dropoff:</strong> ${dropoffLocation}</li>
-        <li><strong>Vehicle:</strong> ${vehicleType}</li>
-        <li><strong>Date:</strong> ${bookingDate}</li>
-      </ul>
-    `
-  };
+  try {
+    // Customer Email
+    await resend.emails.send({
+      from: 'Sahu Transport <onboarding@resend.dev>', // Free default domain
+      to: email,
+      subject: `Booking Update #${bookingId} - Sahu Transport`,
+      html: `
+        <h2>Hello ${customerName},</h2>
+        <p>Your booking status is now: <strong>${status}</strong></p>
+        <ul>
+          <li><strong>Booking ID:</strong> #${bookingId}</li>
+          <li><strong>Pickup:</strong> ${pickupLocation}</li>
+          <li><strong>Dropoff:</strong> ${dropoffLocation}</li>
+          <li><strong>Vehicle:</strong> ${vehicleType}</li>
+          <li><strong>Date:</strong> ${bookingDate}</li>
+        </ul>
+      `
+    });
 
-  const adminMailOptions = {
-    from: `"Sahu Transport System" <${process.env.EMAIL_USER}>`,
-    to: process.env.ADMIN_EMAIL || process.env.EMAIL_USER,
-    subject: `🔔 New Booking Alert #${bookingId} [${status}]`,
-    html: `
-      <h2>New Booking Details</h2>
-      <p><strong>Customer:</strong> ${customerName} (${customerPhone})</p>
-      <p><strong>Status:</strong> ${status}</p>
-    `
-  };
+    // Admin Notification Email
+    await resend.emails.send({
+      from: 'Sahu Transport System <onboarding@resend.dev>',
+      to: process.env.ADMIN_EMAIL || 'yourgmail@gmail.com',
+      subject: `🔔 New Booking Alert #${bookingId} [${status}]`,
+      html: `
+        <h2>New Booking Notification</h2>
+        <p><strong>Customer:</strong> ${customerName} (${customerPhone})</p>
+        <p><strong>Status:</strong> ${status}</p>
+        <p><strong>Pickup:</strong> ${pickupLocation} ➡️ <strong>Dropoff:</strong> ${dropoffLocation}</p>
+      `
+    });
 
-  return Promise.all([
-    transporter.sendMail(mailOptions),
-    transporter.sendMail(adminMailOptions)
-  ]);
+    console.log('✅ Emails sent successfully via Resend API!');
+  } catch (error) {
+    console.error('❌ Resend API Error:', error.message);
+  }
 }
 
 function getQrRoute(req, res) {
-  res.send("<h3>Nodemailer Email Service Active</h3>");
+  res.send("<h3>Resend Email Service Active</h3>");
 }
 
 module.exports = {
