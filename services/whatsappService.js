@@ -8,11 +8,12 @@ let isClientReady = false; // State tracking for readiness
 
 console.log('🚀 Initializing WhatsApp Web Service...');
 
-// Executable Path Handler
+// Executable Path Handler with Fallback
 const envPath = process.env.PUPPETEER_EXECUTABLE_PATH;
 const defaultPath = '/usr/bin/google-chrome-stable';
 const systemChromePath = envPath || defaultPath;
 
+// Render Docker Low-Memory Environment Flags
 const puppeteerConfig = {
   headless: true,
   args: [
@@ -22,8 +23,11 @@ const puppeteerConfig = {
     '--disable-accelerated-2d-canvas',
     '--no-first-run',
     '--no-zygote',
-    '--single-process', // Crucial for Render Free Tier RAM limits
-    '--disable-gpu'
+    '--single-process', // Critical for Render Free Tier RAM limits
+    '--disable-gpu',
+    '--disable-software-rasterizer',
+    '--disable-extensions',
+    '--no-default-browser-check'
   ]
 };
 
@@ -31,7 +35,7 @@ if (fs.existsSync(systemChromePath)) {
   console.log(`✅ Using Chrome binary at: ${systemChromePath}`);
   puppeteerConfig.executablePath = systemChromePath;
 } else {
-  console.log(`⚠️ Chrome executable not found at "${systemChromePath}". Falling back to Puppeteer default Chromium.`);
+  console.log(`⚠️ Chrome executable not found at "${systemChromePath}". Falling back to default Puppeteer Chromium.`);
 }
 
 const client = new Client({
@@ -81,13 +85,18 @@ client.on('disconnected', (reason) => {
   console.log('⚠️ WhatsApp Client Disconnected:', reason);
 });
 
-// Client Initialize Call with Catch Block
-console.log('🔄 Launching client.initialize()...');
-client.initialize().then(() => {
-  console.log('👍 client.initialize() triggered successfully.');
-}).catch((err) => {
-  console.error('❌ FATAL: client.initialize() crashed:', err);
-});
+// Initialize with Error Catching
+async function startWhatsAppService() {
+  console.log('🔄 Launching client.initialize()...');
+  try {
+    await client.initialize();
+    console.log('👍 client.initialize() executed successfully.');
+  } catch (err) {
+    console.error('❌ FATAL: client.initialize() crashed:', err.message);
+  }
+}
+
+startWhatsAppService();
 
 // WhatsApp Message Sender Function
 async function sendWhatsAppMessage(phoneNumber, message) {
