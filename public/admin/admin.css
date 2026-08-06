@@ -1,0 +1,398 @@
+/* ===================================================================
+   ADMIN PANEL STYLES
+   Uses the same CSS variables (:root) defined in ../style.css so
+   colours & fonts stay identical to the main Sahu Transport website.
+=================================================================== */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-family: var(--ff-rubik);
+  font-size: 10px;
+}
+
+body.admin-body {
+  background-color: var(--cultured);
+  color: var(--onyx);
+  font-size: 1.6rem;
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ---------- LOGIN PAGE ---------- */
+.admin-login-wrapper {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background-color: var(--prussian-blue);
+  background-image: linear-gradient(rgba(0,0,0,0.55), rgba(0,0,0,0.55)), url('https://auto.mahindra.com/on/demandware.static/-/Sites-amc-Library/en_IN/-/media/project/mahindra/dotcom/mahindra/hero-banner/gallerypage/bolero-pik-up/Pikup_Gallery_1912x560.jpg');
+  background-size: cover;
+  background-position: center;
+}
+
+.admin-login-card {
+  background-color: var(--white);
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 30px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-1);
+}
+
+.admin-login-card .logo {
+  font-family: var(--ff-oswald);
+  color: var(--eerie-black);
+  font-size: 2.6rem;
+  font-weight: var(--fw-700);
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.admin-login-card .logo span { color: var(--dark-orange); }
+
+.admin-login-subtitle {
+  text-align: center;
+  color: var(--onyx);
+  font-size: var(--fs-9);
+  margin-bottom: 25px;
+}
+
+.admin-error {
+  background-color: hsl(0, 70%, 95%);
+  color: hsl(0, 70%, 40%);
+  border: 1px solid hsl(0, 70%, 80%);
+  padding: 10px 14px;
+  border-radius: 4px;
+  font-size: 1.4rem;
+  margin-bottom: 15px;
+  display: none;
+}
+
+.admin-error.show { display: block; }
+
+/* ---------- SHARED FORM STYLES (matches booking-form on main site) ---------- */
+.admin-form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.admin-form label {
+  font-size: 1.3rem;
+  font-weight: var(--fw-600);
+  color: var(--eerie-black);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.admin-form input,
+.admin-form select {
+  padding: 12px 15px;
+  border: 1px solid var(--light-gray);
+  border-radius: 4px;
+  background-color: var(--white);
+  font-size: 1.5rem;
+  color: var(--onyx);
+  outline: none;
+  transition: var(--transition);
+  width: 100%;
+}
+
+.admin-form input:focus,
+.admin-form select:focus {
+  border-color: var(--dark-orange);
+}
+
+.admin-btn {
+  background-color: var(--dark-orange);
+  color: var(--white);
+  padding: 14px;
+  font-size: 1.6rem;
+  font-weight: var(--fw-600);
+  border-radius: 4px;
+  transition: var(--transition);
+  text-align: center;
+  border: none;
+  cursor: pointer;
+  width: 100%;
+  font-family: var(--ff-rubik);
+}
+
+.admin-btn:hover,
+.admin-btn:focus {
+  background-color: var(--prussian-blue);
+}
+
+.admin-btn-outline {
+  background-color: transparent;
+  color: var(--dark-orange);
+  border: 1px solid var(--dark-orange);
+}
+
+.admin-btn-outline:hover,
+.admin-btn-outline:focus {
+  background-color: var(--dark-orange);
+  color: var(--white);
+}
+
+.admin-btn-small {
+  padding: 8px 14px;
+  font-size: 1.3rem;
+  width: auto;
+}
+
+.admin-btn-danger {
+  background-color: hsl(0, 65%, 50%);
+}
+
+.admin-btn-danger:hover,
+.admin-btn-danger:focus {
+  background-color: hsl(0, 65%, 38%);
+}
+
+/* ---------- DASHBOARD LAYOUT ---------- */
+.admin-topbar {
+  background-color: var(--prussian-blue);
+  color: var(--white);
+  padding: 15px 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.admin-topbar .logo {
+  font-family: var(--ff-oswald);
+  font-size: 2.2rem;
+  font-weight: var(--fw-700);
+  color: var(--white);
+}
+
+.admin-topbar .logo span { color: var(--dark-orange); }
+
+.admin-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  font-size: 1.4rem;
+}
+
+.admin-main {
+  padding: 25px;
+  max-width: 1200px;
+  margin-inline: auto;
+}
+
+.admin-page-title {
+  font-family: var(--ff-oswald);
+  font-size: 2.4rem;
+  font-weight: var(--fw-700);
+  color: var(--eerie-black);
+  margin-bottom: 20px;
+}
+
+/* Stat cards */
+.admin-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  background-color: var(--white);
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 10px hsla(0, 0%, 0%, 0.08);
+  border-left: 4px solid var(--dark-orange);
+}
+
+.stat-card .stat-number {
+  font-family: var(--ff-oswald);
+  font-size: 3rem;
+  font-weight: var(--fw-700);
+  color: var(--eerie-black);
+}
+
+.stat-card .stat-label {
+  font-size: 1.3rem;
+  color: var(--onyx);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.stat-card.pending { border-left-color: hsl(38, 92%, 50%); }
+.stat-card.confirmed { border-left-color: hsl(202, 75%, 47%); }
+.stat-card.completed { border-left-color: hsl(140, 55%, 40%); }
+.stat-card.cancelled { border-left-color: hsl(0, 65%, 50%); }
+
+/* Toolbar */
+.admin-toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.admin-toolbar input[type="text"],
+.admin-toolbar select {
+  padding: 10px 14px;
+  border: 1px solid var(--light-gray);
+  border-radius: 4px;
+  font-size: 1.4rem;
+  font-family: var(--ff-rubik);
+  outline: none;
+}
+
+.admin-toolbar input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+}
+
+.admin-toolbar input:focus,
+.admin-toolbar select:focus {
+  border-color: var(--dark-orange);
+}
+
+/* Table */
+.admin-table-wrapper {
+  background-color: var(--white);
+  border-radius: 8px;
+  overflow-x: auto;
+  box-shadow: 0 2px 10px hsla(0, 0%, 0%, 0.08);
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 800px;
+}
+
+.admin-table th {
+  background-color: var(--eerie-black);
+  color: var(--white);
+  text-align: left;
+  padding: 12px 15px;
+  font-size: 1.3rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+
+.admin-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid var(--cultured);
+  font-size: 1.4rem;
+  vertical-align: middle;
+}
+
+.admin-table tr:hover { background-color: hsl(0, 0%, 98%); }
+
+.admin-table td.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 1.2rem;
+  font-weight: var(--fw-600);
+  color: var(--white);
+  text-transform: capitalize;
+}
+
+.status-badge.Pending { background-color: hsl(38, 92%, 50%); }
+.status-badge.Confirmed { background-color: hsl(202, 75%, 47%); }
+.status-badge.Completed { background-color: hsl(140, 55%, 40%); }
+.status-badge.Cancelled { background-color: hsl(0, 65%, 50%); }
+
+.status-select {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--light-gray);
+  font-size: 1.3rem;
+  font-family: var(--ff-rubik);
+}
+
+.admin-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--onyx);
+  font-size: 1.5rem;
+}
+
+.admin-loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--onyx);
+}
+
+/* Modal (change password) */
+.admin-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: hsla(0, 0%, 0%, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  padding: 20px;
+}
+
+.admin-modal-overlay.show { display: flex; }
+
+.admin-modal {
+  background-color: var(--white);
+  border-radius: 8px;
+  padding: 30px;
+  width: 100%;
+  max-width: 400px;
+}
+
+.admin-modal h3 {
+  font-family: var(--ff-oswald);
+  font-size: 2rem;
+  margin-bottom: 20px;
+  color: var(--eerie-black);
+}
+
+.admin-modal-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.admin-toast {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background-color: var(--eerie-black);
+  color: var(--white);
+  padding: 14px 20px;
+  border-radius: 6px;
+  font-size: 1.4rem;
+  box-shadow: var(--shadow-1);
+  z-index: 60;
+  display: none;
+}
+
+.admin-toast.show { display: block; }
+.admin-toast.success { background-color: hsl(140, 55%, 35%); }
+.admin-toast.error { background-color: hsl(0, 65%, 45%); }
+
+@media (min-width: 768px) {
+  .admin-main { padding: 40px 30px; }
+  .admin-page-title { font-size: 3rem; }
+}

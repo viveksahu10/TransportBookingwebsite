@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Dashboard | Sahu Transport & Logistics</title>
+
+  <!-- Same CSS variables/colors/fonts as main site -->
+  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+
+  <!-- Google Fonts (same as main site) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;600;700&family=Rubik:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Ionicons -->
+  <script type="module" src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.esm.js"></script>
+  <script nomodule src="https://unpkg.com/ionicons@5.5.2/dist/ionicons/ionicons.js"></script>
+</head>
+
+<body class="admin-body">
+
+  <!-- TOP BAR -->
+  <header class="admin-topbar">
+    <p class="logo">🚛 Sahu <span>Admin</span></p>
+    <div class="admin-topbar-right">
+      <span id="welcomeUser">Welcome</span>
+      <button class="admin-btn admin-btn-outline admin-btn-small" id="changePasswordBtn" style="color:#fff;border-color:#fff;">Change Password</button>
+      <button class="admin-btn admin-btn-small" id="logoutBtn">Logout</button>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <h1 class="admin-page-title">Booking Management</h1>
+
+    <!-- STATS -->
+    <div class="admin-stats" id="statsContainer">
+      <div class="stat-card">
+        <p class="stat-number" id="statTotal">-</p>
+        <p class="stat-label">Total Bookings</p>
+      </div>
+      <div class="stat-card pending">
+        <p class="stat-number" id="statPending">-</p>
+        <p class="stat-label">Pending</p>
+      </div>
+      <div class="stat-card confirmed">
+        <p class="stat-number" id="statConfirmed">-</p>
+        <p class="stat-label">Confirmed</p>
+      </div>
+      <div class="stat-card completed">
+        <p class="stat-number" id="statCompleted">-</p>
+        <p class="stat-label">Completed</p>
+      </div>
+      <div class="stat-card cancelled">
+        <p class="stat-number" id="statCancelled">-</p>
+        <p class="stat-label">Cancelled</p>
+      </div>
+    </div>
+
+    <!-- TOOLBAR -->
+    <div class="admin-toolbar">
+      <input type="text" id="searchInput" placeholder="Search by name, phone, email or location...">
+      <select id="statusFilter">
+        <option value="All">All Status</option>
+        <option value="Pending">Pending</option>
+        <option value="Confirmed">Confirmed</option>
+        <option value="Completed">Completed</option>
+        <option value="Cancelled">Cancelled</option>
+      </select>
+      <button class="admin-btn admin-btn-outline admin-btn-small" id="refreshBtn">Refresh</button>
+    </div>
+
+    <!-- TABLE -->
+    <div class="admin-table-wrapper">
+      <table class="admin-table">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Customer</th>
+            <th>Contact</th>
+            <th>Vehicle</th>
+            <th>Route</th>
+            <th>Date</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="bookingsTableBody">
+          <tr><td colspan="8" class="admin-loading">Loading bookings...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </main>
+
+  <!-- CHANGE PASSWORD MODAL -->
+  <div class="admin-modal-overlay" id="passwordModalOverlay">
+    <div class="admin-modal">
+      <h3>Change Password</h3>
+      <form class="admin-form" id="changePasswordForm">
+        <div>
+          <label for="currentPassword">Current Password</label>
+          <input type="password" id="currentPassword" required>
+        </div>
+        <div>
+          <label for="newPassword">New Password</label>
+          <input type="password" id="newPassword" required minlength="6">
+        </div>
+        <div class="admin-modal-actions">
+          <button type="submit" class="admin-btn">Update</button>
+          <button type="button" class="admin-btn admin-btn-outline" id="cancelPasswordBtn">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div class="admin-toast" id="toast"></div>
+
+  <script>
+    'use strict';
+
+    const tableBody = document.getElementById('bookingsTableBody');
+    const searchInput = document.getElementById('searchInput');
+    const statusFilter = document.getElementById('statusFilter');
+    const refreshBtn = document.getElementById('refreshBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const welcomeUser = document.getElementById('welcomeUser');
+    const toast = document.getElementById('toast');
+
+    let searchTimeout = null;
+
+    function showToast(message, type = 'success') {
+      toast.textContent = message;
+      toast.className = 'admin-toast show ' + type;
+      setTimeout(() => { toast.className = 'admin-toast'; }, 3000);
+    }
+
+    // Check session on load
+    async function checkSession() {
+      try {
+        const res = await fetch('/api/admin/session', { credentials: 'include' });
+        const data = await res.json();
+        if (!data.loggedIn) {
+          window.location.href = '/admin/login.html';
+        } else {
+          welcomeUser.textContent = 'Welcome, ' + data.username;
+        }
+      } catch (err) {
+        window.location.href = '/admin/login.html';
+      }
+    }
+
+    async function loadStats() {
+      try {
+        const res = await fetch('/api/admin/stats', { credentials: 'include' });
+        const data = await res.json();
+        if (data.success) {
+          const s = data.stats;
+          document.getElementById('statTotal').textContent = s.total || 0;
+          document.getElementById('statPending').textContent = s.pending || 0;
+          document.getElementById('statConfirmed').textContent = s.confirmed || 0;
+          document.getElementById('statCompleted').textContent = s.completed || 0;
+          document.getElementById('statCancelled').textContent = s.cancelled || 0;
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    function formatDate(dateStr) {
+      const d = new Date(dateStr);
+      if (isNaN(d)) return dateStr;
+      return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+    }
+
+    async function loadBookings() {
+      tableBody.innerHTML = '<tr><td colspan="8" class="admin-loading">Loading bookings...</td></tr>';
+
+      const params = new URLSearchParams();
+      if (statusFilter.value !== 'All') params.append('status', statusFilter.value);
+      if (searchInput.value.trim()) params.append('search', searchInput.value.trim());
+
+      try {
+        const res = await fetch('/api/admin/bookings?' + params.toString(), { credentials: 'include' });
+
+        if (res.status === 401) {
+          window.location.href = '/admin/login.html';
+          return;
+        }
+
+        const data = await res.json();
+
+        if (!data.success || data.bookings.length === 0) {
+          tableBody.innerHTML = '<tr><td colspan="8" class="admin-empty">No bookings found.</td></tr>';
+          return;
+        }
+
+        tableBody.innerHTML = data.bookings.map(b => `
+          <tr data-id="${b.id}">
+            <td>#${b.id}</td>
+            <td>${escapeHtml(b.customer_name)}</td>
+            <td>${escapeHtml(b.phone)}<br><small>${escapeHtml(b.email)}</small></td>
+            <td>${escapeHtml(b.vehicle_type)}</td>
+            <td>${escapeHtml(b.pickup_location)} → ${escapeHtml(b.dropoff_location)}</td>
+            <td>${formatDate(b.booking_date)}</td>
+            <td>
+              <select class="status-select status-update" data-id="${b.id}">
+                <option value="Pending" ${b.status === 'Pending' ? 'selected' : ''}>Pending</option>
+                <option value="Confirmed" ${b.status === 'Confirmed' ? 'selected' : ''}>Confirmed</option>
+                <option value="Completed" ${b.status === 'Completed' ? 'selected' : ''}>Completed</option>
+                <option value="Cancelled" ${b.status === 'Cancelled' ? 'selected' : ''}>Cancelled</option>
+              </select>
+            </td>
+            <td class="actions">
+              <button class="admin-btn admin-btn-danger admin-btn-small delete-btn" data-id="${b.id}">Delete</button>
+            </td>
+          </tr>
+        `).join('');
+
+        attachRowEvents();
+      } catch (err) {
+        tableBody.innerHTML = '<tr><td colspan="8" class="admin-empty">Failed to load bookings. Check server connection.</td></tr>';
+      }
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function attachRowEvents() {
+      document.querySelectorAll('.status-update').forEach(select => {
+        select.addEventListener('change', async (e) => {
+          const id = e.target.dataset.id;
+          const status = e.target.value;
+          try {
+            const res = await fetch(`/api/admin/bookings/${id}/status`, {
+              method: 'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              credentials: 'include',
+              body: JSON.stringify({ status })
+            });
+            const data = await res.json();
+            if (data.success) {
+              showToast('Status updated to ' + status);
+              loadStats();
+            } else {
+              showToast(data.message || 'Failed to update status', 'error');
+            }
+          } catch (err) {
+            showToast('Server error while updating status', 'error');
+          }
+        });
+      });
+
+      document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          const id = e.target.dataset.id;
+          if (!confirm('Are you sure you want to delete booking #' + id + '?')) return;
+
+          try {
+            const res = await fetch(`/api/admin/bookings/${id}`, {
+              method: 'DELETE',
+              credentials: 'include'
+            });
+            const data = await res.json();
+            if (data.success) {
+              showToast('Booking deleted');
+              loadBookings();
+              loadStats();
+            } else {
+              showToast(data.message || 'Failed to delete booking', 'error');
+            }
+          } catch (err) {
+            showToast('Server error while deleting booking', 'error');
+          }
+        });
+      });
+    }
+
+    // Search (debounced) + filter
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(loadBookings, 400);
+    });
+    statusFilter.addEventListener('change', loadBookings);
+    refreshBtn.addEventListener('click', () => { loadBookings(); loadStats(); });
+
+    // Logout
+    logoutBtn.addEventListener('click', async () => {
+      await fetch('/api/admin/logout', { method: 'POST', credentials: 'include' });
+      window.location.href = '/admin/login.html';
+    });
+
+    // Change password modal
+    const passwordModalOverlay = document.getElementById('passwordModalOverlay');
+    document.getElementById('changePasswordBtn').addEventListener('click', () => {
+      passwordModalOverlay.classList.add('show');
+    });
+    document.getElementById('cancelPasswordBtn').addEventListener('click', () => {
+      passwordModalOverlay.classList.remove('show');
+    });
+    document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const currentPassword = document.getElementById('currentPassword').value;
+      const newPassword = document.getElementById('newPassword').value;
+
+      try {
+        const res = await fetch('/api/admin/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ currentPassword, newPassword })
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('Password changed successfully');
+          passwordModalOverlay.classList.remove('show');
+          document.getElementById('changePasswordForm').reset();
+        } else {
+          showToast(data.message || 'Failed to change password', 'error');
+        }
+      } catch (err) {
+        showToast('Server error while changing password', 'error');
+      }
+    });
+
+    // Init
+    checkSession();
+    loadStats();
+    loadBookings();
+  </script>
+
+</body>
+</html>
