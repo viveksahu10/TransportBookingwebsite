@@ -6,8 +6,8 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-// WhatsApp Notification Service Load Karein
-const { notifyBookingStatus } = require('./services/whatsappService');
+// WhatsApp Notification Service & QR Route Handler Load Karein
+const { notifyBookingStatus, getQrRoute } = require('./services/whatsappService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -63,7 +63,6 @@ db.getConnection((err, connection) => {
 // DATABASE SETUP (creates tables if they don't exist + seeds admin)
 // ===================================================================
 function setupDatabase() {
-    // Make sure bookings table has the columns the admin panel needs
     const createBookingsTable = `
         CREATE TABLE IF NOT EXISTS bookings (
             id INT AUTO_INCREMENT PRIMARY KEY,
@@ -98,7 +97,6 @@ function setupDatabase() {
             return;
         }
 
-        // Seed a default admin if no admin exists yet
         db.query('SELECT COUNT(*) AS count FROM admin_users', (err, results) => {
             if (err) return console.error("❌ Error checking admin_users:", err);
 
@@ -142,6 +140,9 @@ function requireAdminPage(req, res, next) {
 app.get("/", (req, res) => {
     res.send("Server is running...");
 });
+
+// 📱 Visual WhatsApp QR Code Web Display Endpoint
+app.get('/qr', getQrRoute);
 
 // Booking API (Form Submission + Complete WhatsApp Notification)
 app.post("/api/bookings", (req, res) => {
@@ -206,7 +207,6 @@ app.post("/api/bookings", (req, res) => {
 
             const newBookingId = result.insertId;
 
-            // 🔔 Customer ke saare details WhatsApp notification me bhejein
             try {
                 await notifyBookingStatus({
                     bookingId: newBookingId,
@@ -236,7 +236,6 @@ app.post("/api/bookings", (req, res) => {
 // ADMIN PANEL ROUTES
 // ===================================================================
 
-// Serve the protected dashboard page only if logged in
 app.get('/admin/dashboard.html', requireAdminPage, (req, res) => {
     res.sendFile(path.join(__dirname, 'admin-views', 'dashboard.html'));
 });
@@ -288,7 +287,7 @@ app.post('/api/admin/logout', (req, res) => {
     });
 });
 
-// Check current session status (used by dashboard page on load)
+// Session status check
 app.get('/api/admin/session', (req, res) => {
     if (req.session && req.session.isAdmin) {
         return res.json({ loggedIn: true, username: req.session.username });
@@ -296,7 +295,7 @@ app.get('/api/admin/session', (req, res) => {
     res.json({ loggedIn: false });
 });
 
-// Get all bookings (with optional status filter + search)
+// Get all bookings
 app.get('/api/admin/bookings', requireAdminAuth, (req, res) => {
     const { status, search } = req.query;
 
@@ -325,7 +324,7 @@ app.get('/api/admin/bookings', requireAdminAuth, (req, res) => {
     });
 });
 
-// Get booking stats for dashboard cards
+// Get booking stats
 app.get('/api/admin/stats', requireAdminAuth, (req, res) => {
     const sql = `
         SELECT
@@ -345,7 +344,7 @@ app.get('/api/admin/stats', requireAdminAuth, (req, res) => {
     });
 });
 
-// Update booking status & Send WhatsApp Notification with Full Details
+// Update booking status
 app.patch('/api/admin/bookings/:id/status', requireAdminAuth, (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
@@ -355,7 +354,6 @@ app.patch('/api/admin/bookings/:id/status', requireAdminAuth, (req, res) => {
         return res.status(400).json({ success: false, message: "Invalid status value." });
     }
 
-    // Existing booking detail fetch karein
     db.query('SELECT * FROM bookings WHERE id = ?', [id], (err, results) => {
         if (err) {
             console.error(err);
@@ -368,14 +366,12 @@ app.patch('/api/admin/bookings/:id/status', requireAdminAuth, (req, res) => {
 
         const booking = results[0];
 
-        // Status Database me update karein
         db.query('UPDATE bookings SET status = ? WHERE id = ?', [status, id], async (err, result) => {
             if (err) {
                 console.error(err);
                 return res.status(500).json({ success: false, message: "Database error." });
             }
 
-            // WhatsApp Notification Bhejna (Saari details ke saath)
             try {
                 await notifyBookingStatus({
                     bookingId: booking.id,
