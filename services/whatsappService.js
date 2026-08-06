@@ -1,11 +1,13 @@
 const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcodeTerminal = require('qrcode-terminal');
 const qrcodeImage = require('qrcode'); // Browser QR rendering ke liye
 require('dotenv').config();
 
 let latestQrBase64 = ''; // Base64 image store karne ke liye variable
+let isClientReady = false; // State tracking for readiness
 
 const executablePath = process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome';
+
+console.log('🚀 Initializing WhatsApp Web Client...');
 
 const client = new Client({
   authStrategy: new LocalAuth({
@@ -26,30 +28,63 @@ const client = new Client({
   }
 });
 
+// QR Code Event
 client.on('qr', async (qr) => {
-  console.log('\n---------------------------------------------------');
-  console.log('Niche diye gaye QR Code ko apne WhatsApp se Scan karein:');
-  console.log('---------------------------------------------------\n');
-  qrcodeTerminal.generate(qr, { small: true });
+  isClientReady = false;
+  console.log('\n===================================================');
+  console.log('⚡ NEW QR CODE GENERATED! Open /qr in browser to scan.');
+  console.log('===================================================\n');
 
   // Browser me dikhane ke liye Base64 Data URL generate kar rahe hain
   try {
     latestQrBase64 = await qrcodeImage.toDataURL(qr);
+    console.log('✅ QR Image converted to Base64 successfully!');
   } catch (err) {
-    console.error('QR Image Generation Error:', err);
+    console.error('❌ QR Image Generation Error:', err);
   }
 });
 
+// Client Ready Event
 client.on('ready', () => {
-  console.log('✅ WhatsApp Web Client Safaltapoorvak Connect Ho Gaya!');
+  isClientReady = true;
   latestQrBase64 = ''; // Connect hone par QR clear kar dein
+  console.log('\n===================================================');
+  console.log('✅ WHATSAPP WEB CLIENT SAFALTAPOORVAK CONNECT HO GAYA!');
+  console.log('===================================================\n');
 });
 
-client.initialize();
+// Authentication Status Logs
+client.on('authenticated', () => {
+  console.log('🔑 WhatsApp Authentication Successful!');
+});
 
+client.on('auth_failure', (msg) => {
+  isClientReady = false;
+  console.error('❌ AUTHENTICATION FAILURE:', msg);
+});
+
+client.on('disconnected', (reason) => {
+  isClientReady = false;
+  console.log('⚠️ WhatsApp Client Disconnected:', reason);
+});
+
+// Client Initialize Call
+client.initialize().catch((err) => {
+  console.error('❌ Failed to initialize WhatsApp Client:', err);
+});
+
+// WhatsApp Message Sender Function
 async function sendWhatsAppMessage(phoneNumber, message) {
   try {
-    if (!phoneNumber) return false;
+    if (!isClientReady) {
+      console.error(`❌ Message not sent to ${phoneNumber}: WhatsApp Client is NOT READY yet.`);
+      return false;
+    }
+
+    if (!phoneNumber) {
+      console.error('❌ Message Error: Phone number is missing.');
+      return false;
+    }
 
     let cleanedNumber = phoneNumber.toString().replace(/[^0-9]/g, '');
     if (cleanedNumber.length === 10) {
@@ -128,14 +163,23 @@ Sahu Transport & Logistics🚛`;
 
 // Helper function to handle Web Express QR Route
 function getQrRoute(req, res) {
+  if (isClientReady) {
+    return res.send(`
+      <div style="text-align:center; font-family:sans-serif; margin-top:50px;">
+        <h2 style="color: green;">✅ WhatsApp Client is already Connected & Active!</h2>
+      </div>
+    `);
+  }
+
   if (!latestQrBase64) {
     return res.send(`
       <div style="text-align:center; font-family:sans-serif; margin-top:50px;">
-        <h2>WhatsApp Client already connected OR QR Code loading...</h2>
+        <h2>⏳ QR Code loading or regenerating...</h2>
         <p>Please refresh in 5 seconds.</p>
       </div>
     `);
   }
+
   res.send(`
     <!DOCTYPE html>
     <html>
