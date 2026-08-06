@@ -1,103 +1,43 @@
-const { Client, LocalAuth } = require('whatsapp-web.js');
-const qrcodeImage = require('qrcode');
-const path = require('path');
+const nodemailer = require('nodemailer');
 require('dotenv').config();
 
-let latestQrBase64 = ''; 
-let isClientReady = false; 
-
-// Memory-Optimized Puppeteer Config for Render Free Tier
-const puppeteerConfig = {
-  headless: true,
-  args: [
-    '--no-sandbox',
-    '--disable-setuid-sandbox',
-    '--disable-dev-shm-usage',
-    '--disable-accelerated-2d-canvas',
-    '--no-first-run',
-    '--no-default-browser-check',
-    '--disable-gpu',
-    '--disable-software-rasterizer',
-    '--disable-extensions',
-    '--no-zygote',
-    '--single-process',
-    '--js-flags="--max-old-space-size=128"',
-    '--renderer-process-limit=1'
-  ]
-};
-
-if (process.env.PUPPETEER_EXECUTABLE_PATH) {
-  puppeteerConfig.executablePath = process.env.PUPPETEER_EXECUTABLE_PATH;
-}
-
-const client = new Client({
-  authStrategy: new LocalAuth({ dataPath: path.join(__dirname, '..', 'whatsapp-auth') }),
-  puppeteer: puppeteerConfig
-});
-
-client.on('qr', async (qr) => {
-  isClientReady = false;
-  try {
-    latestQrBase64 = await qrcodeImage.toDataURL(qr);
-    console.log('⚡ NEW QR CODE GENERATED! Open /qr in browser.');
-  } catch (err) {
-    console.error('❌ QR Generation Error:', err);
+// Create Transporter
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS
   }
 });
 
-client.on('ready', () => {
-  isClientReady = true;
-  latestQrBase64 = ''; 
-  console.log('✅ WHATSAPP CLIENT READY & CONNECTED!');
-});
-
-client.on('auth_failure', (msg) => {
-  isClientReady = false;
-  console.error('❌ AUTH FAILURE:', msg);
-});
-
-client.on('disconnected', async (reason) => {
-  isClientReady = false;
-  console.log('⚠️ Disconnected:', reason);
+// Send Mail Helper
+async function sendEmailNotification(toEmail, subject, htmlContent) {
   try {
-    await client.initialize();
-  } catch (err) {
-    console.error('❌ Re-init failed:', err.message);
-  }
-});
-
-(async () => {
-  try {
-    await client.initialize();
-  } catch (err) {
-    console.error('❌ FATAL Init Error:', err.message);
-  }
-})();
-
-async function sendWhatsAppMessage(phoneNumber, message) {
-  try {
-    if (!isClientReady || !phoneNumber) return false;
-
-    let cleanedNumber = phoneNumber.toString().replace(/[^0-9]/g, '');
-    if (cleanedNumber.length === 10) cleanedNumber = '91' + cleanedNumber;
-
-    const numberDetails = await client.getNumberId(cleanedNumber);
-    if (!numberDetails) {
-      console.error(`❌ Number ${cleanedNumber} not on WhatsApp.`);
+    if (!toEmail) {
+      console.log('⚠️ Email skipped: Receiver email missing.');
       return false;
     }
 
-    await client.sendMessage(numberDetails._serialized, message);
-    console.log(`✅ Message Sent to: ${cleanedNumber}`);
+    const mailOptions = {
+      from: `"Sahu Transport" <${process.env.EMAIL_USER}>`,
+      to: toEmail,
+      subject: subject,
+      html: htmlContent
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+    console.log(`✅ Email sent successfully to ${toEmail} | MessageID: ${info.messageId}`);
     return true;
   } catch (error) {
-    console.error(`❌ Error sending to ${phoneNumber}:`, error.message);
+    console.error(`❌ Nodemailer Error for ${toEmail}:`, error.message);
     return false;
   }
 }
 
+// Booking Status Notification Handler
 async function notifyBookingStatus(bookingData) {
-  const adminPhone = process.env.ADMIN_PHONE;
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+
   const {
     bookingId,
     customerName,
@@ -112,71 +52,56 @@ async function notifyBookingStatus(bookingData) {
 
   const formattedDate = bookingDate ? new Date(bookingDate).toLocaleDateString('en-IN') : 'N/A';
 
-  const adminMsg = `*NEW BOOKING RECEIVED* 
+  // Admin HTML Email Body
+  const adminHtml = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f6f8;">
+      <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 20px; border-top: 4px solid #007bff;">
+        <h2 style="color: #007bff;">🚛 NEW BOOKING RECEIVED</h2>
+        <p><strong>Booking ID:</strong> #${bookingId}</p>
+        <hr>
+        <p><strong>Customer Name:</strong> ${customerName || 'N/A'}</p>
+        <p><strong>Phone:</strong> ${customerPhone || 'N/A'}</p>
+        <p><strong>Email:</strong> ${email || 'N/A'}</p>
+        <hr>
+        <p><strong>Pickup Location:</strong> ${pickupLocation || 'N/A'}</p>
+        <p><strong>Drop-off Location:</strong> ${dropoffLocation || 'N/A'}</p>
+        <p><strong>Vehicle:</strong> ${vehicleType || 'N/A'}</p>
+        <p><strong>Date:</strong> ${formattedDate}</p>
+        <p><strong>Status:</strong> <span style="color: orange;">${status || 'Pending'}</span></p>
+      </div>
+    </div>
+  `;
 
-🆔 *Booking ID:* #${bookingId}
-👤 *Name:* ${customerName || 'N/A'}
-📞 *Phone:* ${customerPhone || 'N/A'}
-📧 *Email:* ${email || 'N/A'}
+  // Customer HTML Email Body
+  const customerHtml = `
+    <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f6f8;">
+      <div style="max-width: 600px; margin: auto; background: white; border-radius: 8px; padding: 20px; border-top: 4px solid #28a745;">
+        <h2 style="color: #28a745;">🎉 Booking Received Successfully!</h2>
+        <p>Hello <strong>${customerName || 'Customer'}</strong>,</p>
+        <p>Thank you for choosing Sahu Transport & Logistics. We have received your booking request.</p>
+        <hr>
+        <h3>📋 Booking Details:</h3>
+        <p><strong>Booking ID:</strong> #${bookingId}</p>
+        <p><strong>Pickup:</strong> ${pickupLocation || 'N/A'}</p>
+        <p><strong>Drop-off:</strong> ${dropoffLocation || 'N/A'}</p>
+        <p><strong>Vehicle:</strong> ${vehicleType || 'N/A'}</p>
+        <p><strong>Booking Date:</strong> ${formattedDate}</p>
+        <p><strong>Status:</strong> <span style="color: green;">${status || 'Pending'}</span></p>
+        <hr>
+        <p>Our team will contact you shortly to confirm details.</p>
+        <p>Warm Regards,<br><strong>Sahu Transport & Logistics 🚛</strong></p>
+      </div>
+    </div>
+  `;
 
-📍 *Pickup:* ${pickupLocation || 'N/A'}
-🏁 *Drop-off:* ${dropoffLocation || 'N/A'}
-🚚 *Vehicle:* ${vehicleType || 'N/A'}
-📅 *Date:* ${formattedDate}
-📌 *Status:* ${status || 'Pending'}`;
-
-  const customerMsg = `🎉 *Booking Received!*
-
-Hello ${customerName || 'Customer'},
-We have successfully received your booking request! 🚛
-
-📋 *Booking Summary:*
-🆔 *Booking ID:* #${bookingId}
-📍 *Pickup:* ${pickupLocation || 'N/A'}
-🏁 *Drop-off:* ${dropoffLocation || 'N/A'}
-🚚 *Vehicle:* ${vehicleType || 'N/A'}
-📅 *Date:* ${formattedDate}
-📌 *Status:* ${status || 'Pending'}
-
-For Any Query Contact: ${adminPhone || 'N/A'}
-
-Warm Regards,
-Sahu Transport & Logistics🚛`;
-
-  if (customerPhone) await sendWhatsAppMessage(customerPhone, customerMsg);
-  if (adminPhone) await sendWhatsAppMessage(adminPhone, adminMsg);
+  // Send Mails
+  if (adminEmail) await sendEmailNotification(adminEmail, `New Booking #${bookingId} - Sahu Transport`, adminHtml);
+  if (email) await sendEmailNotification(email, `Booking Confirmation #${bookingId} - Sahu Transport`, customerHtml);
 }
 
+// Dummy Route to prevent express route errors
 function getQrRoute(req, res) {
-  if (isClientReady) {
-    return res.send('<h2 style="color:green;text-align:center;margin-top:50px;">✅ WhatsApp Client Connected!</h2>');
-  }
-
-  if (!latestQrBase64) {
-    return res.send('<h2 style="text-align:center;margin-top:50px;">⏳ QR Code loading... Refresh in 5s.</h2>');
-  }
-
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <title>WhatsApp QR Scan</title>
-        <meta http-equiv="refresh" content="10">
-        <style>
-          body { display:flex; justify-content:center; align-items:center; min-height:80vh; font-family:sans-serif; background:#f4f6f8; }
-          .card { background:#fff; padding:30px; border-radius:12px; text-align:center; box-shadow:0 4px 12px rgba(0,0,0,0.1); }
-          img { border:4px solid #25D366; border-radius:8px; margin:15px 0; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h2>Scan with WhatsApp</h2>
-          <img src="${latestQrBase64}" width="280" height="280" alt="QR Code" />
-          <p style="color:#666;font-size:14px;">Auto-refreshes every 10 seconds</p>
-        </div>
-      </body>
-    </html>
-  `);
+  res.send('<h2 style="color:green;text-align:center;margin-top:50px;">✅ Gmail Nodemailer Service Active! (0% Server Load)</h2>');
 }
 
-module.exports = { notifyBookingStatus, sendWhatsAppMessage, getQrRoute };
+module.exports = { notifyBookingStatus, sendEmailNotification, getQrRoute };

@@ -6,7 +6,7 @@ const session = require('express-session');
 const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
-// WhatsApp Notification Service & QR Route Handler Load Karein
+// Email Notification Service Load Karein (Nodemailer)
 const { notifyBookingStatus, getQrRoute } = require('./services/whatsappService');
 
 const app = express();
@@ -111,7 +111,7 @@ function setupDatabase() {
                     (err) => {
                         if (err) return console.error("❌ Error seeding admin user:", err);
                         console.log(`✅ Default admin created -> username: "${defaultUsername}", password: "${defaultPassword}"`);
-                        console.log("⚠️  Please log in and change this password immediately.");
+                        console.log("⚠️ Please log in and change this password immediately.");
                     }
                 );
             }
@@ -141,10 +141,10 @@ app.get("/", (req, res) => {
     res.send("Server is running...");
 });
 
-// 📱 Visual WhatsApp QR Code Web Display Endpoint
+// Status Info Endpoint
 app.get('/qr', getQrRoute);
 
-// Booking API (Form Submission + Complete WhatsApp Notification)
+// Booking API (Form Submission + Background Email Notification)
 app.post("/api/bookings", (req, res) => {
     const {
         customer_name,
@@ -196,7 +196,7 @@ app.post("/api/bookings", (req, res) => {
             vehicle_type,
             booking_date
         ],
-        async (err, result) => {
+        (err, result) => {
             if (err) {
                 console.error(err);
                 return res.status(500).json({
@@ -207,26 +207,26 @@ app.post("/api/bookings", (req, res) => {
 
             const newBookingId = result.insertId;
 
-            try {
-                await notifyBookingStatus({
-                    bookingId: newBookingId,
-                    customerName: customer_name,
-                    email: email,
-                    customerPhone: phone,
-                    pickupLocation: pickup_location,
-                    dropoffLocation: dropoff_location,
-                    vehicleType: vehicle_type,
-                    bookingDate: booking_date,
-                    status: 'Pending'
-                });
-            } catch (notifyErr) {
-                console.error("WhatsApp Notification Error:", notifyErr);
-            }
-
+            // 1. Send HTTP Response FIRST for fast user feedback
             res.status(201).json({
                 success: true,
                 message: "Booking Submitted Successfully",
                 bookingId: newBookingId
+            });
+
+            // 2. Trigger Email Notification asynchronously in background
+            notifyBookingStatus({
+                bookingId: newBookingId,
+                customerName: customer_name,
+                email: email,
+                customerPhone: phone,
+                pickupLocation: pickup_location,
+                dropoffLocation: dropoff_location,
+                vehicleType: vehicle_type,
+                bookingDate: booking_date,
+                status: 'Pending'
+            }).catch(notifyErr => {
+                console.error("Email Notification Error:", notifyErr);
             });
         }
     );
@@ -366,31 +366,30 @@ app.patch('/api/admin/bookings/:id/status', requireAdminAuth, (req, res) => {
 
         const booking = results[0];
 
-        db.query('UPDATE bookings SET status = ? WHERE id = ?', [status, id], async (err, result) => {
+        db.query('UPDATE bookings SET status = ? WHERE id = ?', [status, id], (err, result) => {
             if (err) {
                 console.error(err);
                 return res.status(500).json({ success: false, message: "Database error." });
             }
 
-            try {
-                await notifyBookingStatus({
-                    bookingId: booking.id,
-                    customerName: booking.customer_name,
-                    email: booking.email,
-                    customerPhone: booking.phone,
-                    pickupLocation: booking.pickup_location,
-                    dropoffLocation: booking.dropoff_location,
-                    vehicleType: booking.vehicle_type,
-                    bookingDate: booking.booking_date,
-                    status: status
-                });
-            } catch (notifyErr) {
-                console.error("WhatsApp Notification Error:", notifyErr);
-            }
-
             res.json({ 
                 success: true, 
-                message: "Status updated successfully and WhatsApp notification sent." 
+                message: "Status updated successfully." 
+            });
+
+            // Send notification email in background
+            notifyBookingStatus({
+                bookingId: booking.id,
+                customerName: booking.customer_name,
+                email: booking.email,
+                customerPhone: booking.phone,
+                pickupLocation: booking.pickup_location,
+                dropoffLocation: booking.dropoff_location,
+                vehicleType: booking.vehicle_type,
+                bookingDate: booking.booking_date,
+                status: status
+            }).catch(notifyErr => {
+                console.error("Email Notification Error:", notifyErr);
             });
         });
     });
@@ -443,7 +442,6 @@ app.post('/api/admin/change-password', requireAdminAuth, (req, res) => {
     });
 });
 
-// Start Server
 // Start Server
 app.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Server running on port ${PORT}`);
