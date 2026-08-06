@@ -31,7 +31,6 @@ const puppeteerConfig = {
     '--disable-software-rasterizer',
     '--disable-extensions',
     '--memory-pressure-off'
-    // NOTE: Removed '--single-process' and '--no-zygote' as they crash newer Chrome builds
   ]
 };
 
@@ -84,10 +83,16 @@ client.on('auth_failure', (msg) => {
   console.error('❌ AUTHENTICATION FAILURE:', msg);
 });
 
-// Event: Disconnected
+// Event: Disconnected (Auto Re-initialize logic)
 client.on('disconnected', async (reason) => {
   isClientReady = false;
   console.log('⚠️ WhatsApp Client Disconnected:', reason);
+  console.log('🔄 Attempting to re-initialize WhatsApp client...');
+  try {
+    await client.initialize();
+  } catch (err) {
+    console.error('❌ Re-initialization failed:', err.message);
+  }
 });
 
 // Initialize Service
@@ -103,7 +108,7 @@ async function startWhatsAppService() {
 
 startWhatsAppService();
 
-// WhatsApp Message Sender Function
+// WhatsApp Message Sender Function (With Number Lookup Fix)
 async function sendWhatsAppMessage(phoneNumber, message) {
   try {
     if (!isClientReady) {
@@ -116,13 +121,26 @@ async function sendWhatsAppMessage(phoneNumber, message) {
       return false;
     }
 
+    // Clean number to digits only
     let cleanedNumber = phoneNumber.toString().replace(/[^0-9]/g, '');
+
+    // Add country code 91 for Indian 10-digit numbers
     if (cleanedNumber.length === 10) {
       cleanedNumber = '91' + cleanedNumber;
     }
 
-    const chatId = `${cleanedNumber}@c.us`;
-    await client.sendMessage(chatId, message);
+    // WhatsApp ID lookup verify
+    const numberDetails = await client.getNumberId(cleanedNumber);
+
+    if (!numberDetails) {
+      console.error(`❌ Phone number ${cleanedNumber} is NOT registered on WhatsApp.`);
+      return false;
+    }
+
+    // Official target WhatsApp ID (_serialized string)
+    const targetJid = numberDetails._serialized;
+
+    await client.sendMessage(targetJid, message);
     console.log(`✅ WhatsApp Message Sent to: ${cleanedNumber}`);
     return true;
   } catch (error) {
